@@ -1,5 +1,5 @@
-train_root: ../datasets/Colorize_C
-val_root: ../datasets/lineart
+train_root: ./datasets/Colorize_C
+val_root: ./datasets/lineart
 
 workers: 4
 batch_size: 4
@@ -9,7 +9,6 @@ val_freq: 5000
 print_freq: 1
 print_img_freq: 100
 
-
 ngf: 64
 ndf: 64
 
@@ -17,16 +16,15 @@ lrG: 0.0001
 lrD: 0.0001
 
 lr_scheduler:
-    type: STEP
+  type: STEP
 
-    lr_steps: [125000]
-    lr_mults: [0.1]
+  lr_steps: [125000]
+  lr_mults: [0.1]
 
-    base_lr: 0.0001
-    warmup_steps: 0
-    warmup_lr: 0
-    max_iter: 250000
-
+  base_lr: 0.0001
+  warmup_steps: 0
+  warmup_lr: 0
+  max_iter: 250000
 
 diters: 1 # number of D iters per G iter
 seed: 2333

@@ -40,17 +40,20 @@ class RandomCrop(object):
         if w == tw:
             x1 = 0
             y1 = random.randint(0, h - th)
-            return img1.crop((x1, y1, x1 + tw, y1 + th)), img2.crop((x1, y1, x1 + tw, y1 + th))
+            return img1.crop((x1, y1, x1 + tw, y1 + th)),\
+                img2.crop((x1, y1, x1 + tw, y1 + th))
 
         elif h == th:
             x1 = random.randint(0, w - tw)
             y1 = 0
-            return img1.crop((x1, y1, x1 + tw, y1 + th)), img2.crop((x1, y1, x1 + tw, y1 + th))
+            return img1.crop((x1, y1, x1 + tw, y1 + th)),\
+                img2.crop((x1, y1, x1 + tw, y1 + th))
 
         else:
             x1 = random.randint(0, w - tw)
             y1 = random.randint(0, h - th)
-            return img1.crop((x1, y1, x1 + tw, y1 + th)), img2.crop((x1, y1, x1 + tw, y1 + th))
+            return img1.crop((x1, y1, x1 + tw, y1 + th)), \
+                img2.crop((x1, y1, x1 + tw, y1 + th))
 
 
 class RandomSizedCrop(object):
@@ -185,9 +188,11 @@ class GivenIterationSampler(Sampler):
     def __iter__(self):
         if self.call == 0:
             self.call = 1
-            return iter(self.indices[(self.last_iter + 1) * self.batch_size * (self.diter + 1):])
+            return iter(self.indices[(self.last_iter + 1)
+                                     * self.batch_size * (self.diter + 1):])
         else:
-            raise RuntimeError("this sampler is not designed to be called more than once!!")
+            raise RuntimeError(
+                "this sampler is not designed to be called more than once!!")
 
     def gen_new_list(self):
         # each process shuffle all list with same seed
@@ -211,6 +216,7 @@ class GivenIterationSampler(Sampler):
         # return self.total_size - (self.last_iter+1)*self.batch_size
         return self.total_size
 
+
 class ImageFolder(data.Dataset):
     def __init__(self, root, transform=None, vtransform=None, stransform=None):
         imgs = make_dataset(root)
@@ -225,12 +231,15 @@ class ImageFolder(data.Dataset):
     def __getitem__(self, index):
         fname = self.imgs[index]
         Cimg = color_loader(os.path.join(self.root, 'color', fname))
-        Simg = sketch_loader(os.path.join(self.root, str(random.randint(0, 2)), fname))
+        Simg = sketch_loader(os.path.join(
+            self.root, str(random.randint(0, 2)), fname))
         Cimg, Simg = RandomCrop(512)(Cimg, Simg)
         if random.random() < 0.5:
-            Cimg, Simg = Cimg.transpose(Image.FLIP_LEFT_RIGHT), Simg.transpose(Image.FLIP_LEFT_RIGHT)
+            Cimg, Simg = Cimg.transpose(
+                Image.FLIP_LEFT_RIGHT), Simg.transpose(Image.FLIP_LEFT_RIGHT)
 
-        Cimg, Vimg, Simg = self.transform(Cimg), self.vtransform(Cimg), self.stransform(Simg)
+        Cimg, Vimg, Simg = self.transform(
+            Cimg), self.vtransform(Cimg), self.stransform(Simg)
 
         return Cimg, Vimg, Simg
 
@@ -262,14 +271,21 @@ def CreateDataLoader(config):
         transforms.Scale(config.image_size, Image.BICUBIC),
         transforms.ToTensor(),
         transforms.Lambda(jitter),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        transforms.Normalize((0.5), (0.5))
     ])
 
-    train_dataset = ImageFolder(root=config.train_root, transform=CTrans, vtransform=VTrans, stransform=STrans)
+    train_dataset = ImageFolder(
+        root=config.train_root, transform=CTrans,
+        vtransform=VTrans, stransform=STrans)
 
     assert train_dataset
 
-    train_sampler = GivenIterationSampler(train_dataset, config.lr_scheduler.max_iter, config.batch_size, config.diters, last_iter=config.lr_scheduler.last_iter)
+    train_sampler = GivenIterationSampler(
+        train_dataset, config.lr_scheduler.max_iter,
+        config.batch_size, config.diters,
+        last_iter=config.lr_scheduler.last_iter)
 
-    return data.DataLoader(train_dataset, batch_size=config.batch_size,
-                           shuffle=False, pin_memory=True, num_workers=int(config.workers), sampler=train_sampler)
+    return data.DataLoader(
+        train_dataset, batch_size=config.batch_size,
+        shuffle=False, pin_memory=True,
+        num_workers=int(config.workers), sampler=train_sampler)

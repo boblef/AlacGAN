@@ -3,7 +3,6 @@ import os
 import random
 import yaml
 import time
-import logging
 import pprint
 
 import scipy.stats as stats
@@ -17,16 +16,18 @@ from easydict import EasyDict
 
 from data.train import CreateDataLoader as train_loader
 from data.eval import CreateDataLoader as val_loader
-from utils import create_logger, save_checkpoint, load_state, get_scheduler, AverageMeter, calculate_fid
+from utils import (
+    create_logger, save_checkpoint, load_state,
+    get_scheduler, AverageMeter, calculate_fid)
 from models.standard import *
 
-from torchvision.utils import save_image
 import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser(description='PyTorch Colorization Training')
 
 parser.add_argument('--config', default='experiments/origin/config.yaml')
-parser.add_argument('--resume', default='', type=str, help='path to checkpoint')
+parser.add_argument('--resume', default='', type=str,
+                    help='path to checkpoint')
 
 
 def calc_gradient_penalty(netD, real_data, fake_data, sketch_feat):
@@ -39,10 +40,13 @@ def calc_gradient_penalty(netD, real_data, fake_data, sketch_feat):
     disc_interpolates = netD(interpolates, sketch_feat)
 
     gradients = grad(outputs=disc_interpolates, inputs=interpolates,
-                     grad_outputs=torch.ones(disc_interpolates.size(), device=config.device), create_graph=True,
+                     grad_outputs=torch.ones(disc_interpolates.size(),
+                                             device=config.device),
+                     create_graph=True,
                      retain_graph=True, only_inputs=True)[0]
 
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * config.gpW
+    gradient_penalty = ((gradients.norm(2, dim=1) - 1)
+                        ** 2).mean() * config.gpW
     return gradient_penalty
 
 
@@ -50,8 +54,10 @@ def mask_gen():
     maskS = config.image_size // 4
 
     mask1 = torch.cat(
-        [torch.rand(1, 1, maskS, maskS).ge(X.rvs(1)[0]).float() for _ in range(config.batch_size // 2)], 0)
-    mask2 = torch.cat([torch.zeros(1, 1, maskS, maskS).float() for _ in range(config.batch_size // 2)], 0)
+        [torch.rand(1, 1, maskS, maskS).ge(X.rvs(1)[0]).float()
+            for _ in range(config.batch_size // 2)], 0)
+    mask2 = torch.cat([torch.zeros(1, 1, maskS, maskS).float()
+                       for _ in range(config.batch_size // 2)], 0)
     mask = torch.cat([mask1, mask2], 0)
 
     return mask.to(config.device)
@@ -68,7 +74,7 @@ def main():
 
     config.save_path = os.path.dirname(args.config)
 
-    ####### regular set up
+    # regular set up
     assert torch.cuda.is_available()
     device = torch.device("cuda")
     config.device = device
@@ -80,8 +86,7 @@ def main():
     torch.cuda.manual_seed(config.seed)
     cudnn.benchmark = True
 
-    ####### regular set up end
-
+    # regular set up end
 
     netG = torch.nn.DataParallel(NetG(ngf=config.ngf))
     netD = torch.nn.DataParallel(NetD(ndf=config.ndf))
@@ -106,14 +111,17 @@ def main():
 
     # setup optimizer
 
-    optimizerG = optim.Adam(netG.parameters(), lr=config.lr_scheduler.base_lr, betas=(0.5, 0.9))
-    optimizerD = optim.Adam(netD.parameters(), lr=config.lr_scheduler.base_lr, betas=(0.5, 0.9))
+    optimizerG = optim.Adam(
+        netG.parameters(), lr=config.lr_scheduler.base_lr, betas=(0.5, 0.9))
+    optimizerD = optim.Adam(
+        netD.parameters(), lr=config.lr_scheduler.base_lr, betas=(0.5, 0.9))
 
     last_iter = -1
     best_fid = 1e6
 
     if args.resume:
-        best_fid, last_iter = load_state(args.resume, netG, netD, optimizerG, optimizerD)
+        best_fid, last_iter = load_state(
+            args.resume, netG, netD, optimizerG, optimizerD)
 
     config.lr_scheduler['last_iter'] = last_iter
 
@@ -131,7 +139,8 @@ def main():
     data_time = AverageMeter(config.print_freq)
     flag = 1
     mu, sigma = 1, 0.005
-    X = stats.truncnorm((0 - mu) / sigma, (1 - mu) / sigma, loc=mu, scale=sigma)
+    X = stats.truncnorm((0 - mu) / sigma, (1 - mu) /
+                        sigma, loc=mu, scale=sigma)
     i = 0
     curr_iter = last_iter + 1
 
@@ -163,7 +172,8 @@ def main():
             real_cim, real_vim, real_sim = data_iter.next()
             data_time.update(time.time() - data_end)
 
-            real_cim, real_vim, real_sim = real_cim.to(device), real_vim.to(device), real_sim.to(device)
+            real_cim, real_vim, real_sim = real_cim.to(
+                device), real_vim.to(device), real_sim.to(device)
             mask = mask_gen()
             hint = torch.cat((real_vim * mask, mask), 1)
 
@@ -183,9 +193,11 @@ def main():
 
             errD_realer = -1 * errD_real + errD_real.pow(2) * config.drift
 
-            errD_realer.backward(retain_graph=True)  # backward on score on real
+            # backward on score on real
+            errD_realer.backward(retain_graph=True)
 
-            gradient_penalty = calc_gradient_penalty(netD, real_cim, fake_cim, feat_sim)
+            gradient_penalty = calc_gradient_penalty(
+                netD, real_cim, fake_cim, feat_sim)
             gradient_penalty.backward()
 
             optimizerD.step()
@@ -204,7 +216,8 @@ def main():
         real_cim, real_vim, real_sim = data
         i += 1
 
-        real_cim, real_vim, real_sim = real_cim.to(device), real_vim.to(device), real_sim.to(device)
+        real_cim, real_vim, real_sim = real_cim.to(
+            device), real_vim.to(device), real_sim.to(device)
 
         if flag:  # fix samples
             mask = mask_gen()
@@ -212,9 +225,12 @@ def main():
             with torch.no_grad():
                 feat_sim = netI(real_sim).detach()
 
-            tb_logger.add_image('target imgs', vutils.make_grid(real_cim.mul(0.5).add(0.5), nrow=4))
-            tb_logger.add_image('sketch imgs', vutils.make_grid(real_sim.mul(0.5).add(0.5), nrow=4))
-            tb_logger.add_image('hint', vutils.make_grid((real_vim * mask).mul(0.5).add(0.5), nrow=4))
+            tb_logger.add_image('target imgs', vutils.make_grid(
+                real_cim.mul(0.5).add(0.5), nrow=4))
+            tb_logger.add_image('sketch imgs', vutils.make_grid(
+                real_sim.mul(0.5).add(0.5), nrow=4))
+            tb_logger.add_image('hint', vutils.make_grid(
+                (real_vim * mask).mul(0.5).add(0.5), nrow=4))
 
             fixed_sketch.resize_as_(real_sim).copy_(real_sim)
             fixed_hint.resize_as_(hint).copy_(hint)
@@ -252,11 +268,14 @@ def main():
 
         if curr_iter % config.print_freq == 0:
             tb_logger.add_scalar('VGG MSE Loss', contentLoss.item(), curr_iter)
-            tb_logger.add_scalar('wasserstein distance', errD.item(), curr_iter)
+            tb_logger.add_scalar('wasserstein distance',
+                                 errD.item(), curr_iter)
             tb_logger.add_scalar('errD_real', errD_real.item(), curr_iter)
             tb_logger.add_scalar('errD_fake', errD_fake.item(), curr_iter)
-            tb_logger.add_scalar('Gnet loss toward real', errG.item(), curr_iter)
-            tb_logger.add_scalar('gradient_penalty', gradient_penalty.item(), curr_iter)
+            tb_logger.add_scalar('Gnet loss toward real',
+                                 errG.item(), curr_iter)
+            tb_logger.add_scalar('gradient_penalty',
+                                 gradient_penalty.item(), curr_iter)
             tb_logger.add_scalar('lr', current_lr, curr_iter)
             logger.info(f'Iter: [{curr_iter}/{len(dataloader)//(config.diters+1)}]\t'
                         f'Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t'
@@ -273,7 +292,9 @@ def main():
             with torch.no_grad():
                 fake = netG(fixed_sketch, fixed_hint, fixed_sketch_feat)
                 tb_logger.add_image('colored imgs',
-                                    vutils.make_grid(fake.detach().mul(0.5).add(0.5), nrow=4),
+                                    vutils.make_grid(
+                                        fake.detach().mul(0.5).add(0.5),
+                                        nrow=4),
                                     curr_iter)
 
         if curr_iter % config.val_freq == 0:
@@ -308,10 +329,15 @@ def validate(netG, netI):
     fid_value /= 3
     return fid_value, np.var(fids)
 
+
 def save_training_images(real_sim, hint, fake_cim, real_cim, num):
-    real_sim = real_sim.mul(0.5).add(0.5).permute(1, 2, 0).to('cpu').detach().numpy() 
-    fake_cim = fake_cim.mul(0.5).add(0.5).permute(1, 2, 0).to('cpu').detach().numpy()
-    real_cim = real_cim.mul(0.5).add(0.5).permute(1, 2, 0).to('cpu').detach().numpy()
+    # https://gokids.hatenablog.com/entry/2017/10/03/223816
+    real_sim = real_sim.mul(0.5).add(0.5).permute(
+        1, 2, 0).to('cpu').detach().numpy()
+    fake_cim = fake_cim.mul(0.5).add(0.5).permute(
+        1, 2, 0).to('cpu').detach().numpy()
+    real_cim = real_cim.mul(0.5).add(0.5).permute(
+        1, 2, 0).to('cpu').detach().numpy()
 
     r, c = 1, 3
     gen_imgs = [real_sim, fake_cim, real_cim]
@@ -319,11 +345,12 @@ def save_training_images(real_sim, hint, fake_cim, real_cim, num):
 
     fig, axs = plt.subplots(r, c)
     for i in range(c):
-        axs[i].imshow(gen_imgs[i], cmap='gray')
+        axs[i].imshow(np.squeeze(gen_imgs[i]), cmap='gray')
         axs[i].set_title(titles[i])
         axs[i].axis('off')
     fig.savefig(f"results/test/{num}.jpg")
     plt.close()
+
 
 if __name__ == '__main__':
     main()
